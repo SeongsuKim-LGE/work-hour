@@ -13,6 +13,7 @@ describe("calculatePlannedWorkHourPace", () => {
     expect(result).toEqual({
       status: "exceeded",
       totalPlannedHours: 80,
+      totalExclusionHours: 0,
       excessHours: 30,
     });
   });
@@ -24,7 +25,11 @@ describe("calculatePlannedWorkHourPace", () => {
       entries: [{ hours: 8, minutes: 0, days: 10 }],
     });
 
-    expect(result).toEqual({ status: "met", totalPlannedHours: 80 });
+    expect(result).toEqual({
+      status: "met",
+      totalPlannedHours: 80,
+      totalExclusionHours: 0,
+    });
   });
 
   test("예상누적근무시간이 정상근무시간보다 작으면 부족 예상 상태와 부족 시간을 반환한다", () => {
@@ -37,6 +42,7 @@ describe("calculatePlannedWorkHourPace", () => {
     expect(result).toEqual({
       status: "shortfall",
       totalPlannedHours: 50,
+      totalExclusionHours: 0,
       shortfallHours: 30,
     });
   });
@@ -51,7 +57,12 @@ describe("calculatePlannedWorkHourPace", () => {
       ],
     });
 
-    expect(result).toEqual({ status: "shortfall", totalPlannedHours: 37.5, shortfallHours: 62.5 });
+    expect(result).toEqual({
+      status: "shortfall",
+      totalPlannedHours: 37.5,
+      totalExclusionHours: 0,
+      shortfallHours: 62.5,
+    });
   });
 
   test("분(分)이 59를 넘으면 시간으로 환산해 합산한다", () => {
@@ -61,7 +72,12 @@ describe("calculatePlannedWorkHourPace", () => {
       entries: [{ hours: 1, minutes: 90, days: 1 }],
     });
 
-    expect(result).toEqual({ status: "shortfall", totalPlannedHours: 2.5, shortfallHours: 97.5 });
+    expect(result).toEqual({
+      status: "shortfall",
+      totalPlannedHours: 2.5,
+      totalExclusionHours: 0,
+      shortfallHours: 97.5,
+    });
   });
 
   test("예상 근무 계획 항목이 없으면 총예상근무시간을 0으로 취급한다", () => {
@@ -71,7 +87,11 @@ describe("calculatePlannedWorkHourPace", () => {
       entries: [],
     });
 
-    expect(result).toEqual({ status: "met", totalPlannedHours: 0 });
+    expect(result).toEqual({
+      status: "met",
+      totalPlannedHours: 0,
+      totalExclusionHours: 0,
+    });
   });
 
   test("정상근무시간, 누적근무시간, 또는 항목의 시간·분·일수 중 하나라도 음수이면 입력 오류 상태를 반환한다", () => {
@@ -151,6 +171,62 @@ describe("calculatePlannedWorkHourPace", () => {
         normalHours: 100,
         accumulatedHours: 0,
         entries: [{ hours: 0, minutes: 0, days: 1.5 }],
+      })
+    ).toEqual({ status: "invalid" });
+  });
+
+  test("근무제외 항목(전일)이 있으면 정상근무시간에서 8시간 × 일수만큼 차감한 유효목표시간으로 판정한다", () => {
+    const result = calculatePlannedWorkHourPace({
+      normalHours: 100,
+      accumulatedHours: 50,
+      entries: [],
+      exclusions: [{ type: "full", days: 2 }],
+    });
+
+    expect(result).toEqual({
+      status: "shortfall",
+      totalPlannedHours: 0,
+      totalExclusionHours: 16,
+      shortfallHours: 34,
+    });
+  });
+
+  test("근무제외 항목(반일=4시간, 반반일=2시간)이 여러 개면 합계를 반영한다", () => {
+    const result = calculatePlannedWorkHourPace({
+      normalHours: 100,
+      accumulatedHours: 80,
+      entries: [],
+      exclusions: [
+        { type: "half", days: 2 },
+        { type: "quarter", days: 3 },
+      ],
+    });
+
+    // 총제외시간 = 4*2 + 2*3 = 14, 유효목표시간 = 100-14 = 86, 예상누적 = 80
+    expect(result).toEqual({
+      status: "shortfall",
+      totalPlannedHours: 0,
+      totalExclusionHours: 14,
+      shortfallHours: 6,
+    });
+  });
+
+  test("근무제외 항목의 일수가 음수이거나 정수가 아니면 입력 오류 상태를 반환한다", () => {
+    expect(
+      calculatePlannedWorkHourPace({
+        normalHours: 100,
+        accumulatedHours: 0,
+        entries: [],
+        exclusions: [{ type: "full", days: -1 }],
+      })
+    ).toEqual({ status: "invalid" });
+
+    expect(
+      calculatePlannedWorkHourPace({
+        normalHours: 100,
+        accumulatedHours: 0,
+        entries: [],
+        exclusions: [{ type: "full", days: 1.5 }],
       })
     ).toEqual({ status: "invalid" });
   });
