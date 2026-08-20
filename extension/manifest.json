@@ -6,6 +6,7 @@
   "permissions": ["tabs"],
   "host_permissions": [
     "https://attendance.lge.com/*",
+    "https://work-hour-jet.vercel.app/*",
     "http://localhost/*",
     "http://127.0.0.1/*"
   ],
@@ -14,7 +15,11 @@
   },
   "content_scripts": [
     {
-      "matches": ["http://localhost/*", "http://127.0.0.1/*"],
+      "matches": [
+        "https://work-hour-jet.vercel.app/*",
+        "http://localhost/*",
+        "http://127.0.0.1/*"
+      ],
       "js": ["calculator-content.js"],
       "run_at": "document_idle"
     },
