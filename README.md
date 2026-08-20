@@ -69,3 +69,13 @@ flowchart LR
 ```
 
 파이프라인 밖에서는 `project-knowledge`, `maintain-project-context`, `add-stack-context`, `build-prototype`, `explain-visually`, `tdd`가 각자의 조건에 따라 켜집니다. `project-knowledge`는 `GLOSSARY.md`, `docs/decisions/`, `docs/follow-ups/`에 다음 작업에서도 재사용할 지식과 후속 항목을 남깁니다. Git 작업은 `commit`, `pull`, `push`, `pr`, `merge`가 해당 요청에 맞춰 처리합니다.
+# 근무시간 배분 계산기
+
+## 개발 서버
+
+```bash
+bun install
+bun run dev
+```
+
+근태 현황 자동 가져오기를 사용하려면 [Chrome 확장 프로그램 설치 안내](./extension/README.md)를 따라 `extension` 폴더를 설치합니다.

@@ -49,6 +49,55 @@ function fillEntry(index: number, hours: string, minutes: string, days: string) 
   });
 }
 
+test("가져오기가 성공하면 근무시간을 반영하고 남은 근무 일수는 유지한다", () => {
+  render(<Home />);
+
+  const remainingBefore = (
+    screen.getByLabelText("남은 근무 일수(일)") as HTMLInputElement
+  ).value;
+
+  fireEvent.click(screen.getByRole("button", { name: "가져오기" }));
+  fireEvent(
+    window,
+    new CustomEvent("work-hour-calc:attendance-status-result", {
+      detail: {
+        ok: true,
+        status: {
+          normalHours: 160,
+          accumulatedHours: 81,
+          accumulatedMinutes: 30,
+        },
+      },
+    })
+  );
+
+  expect(screen.getByLabelText("정상근무시간(시간)")).toHaveValue(160);
+  expect(screen.getByLabelText("누적근무시간 시간")).toHaveValue(81);
+  expect(screen.getByLabelText("누적근무시간 분")).toHaveValue(30);
+  expect(screen.getByLabelText("남은 근무 일수(일)")).toHaveValue(
+    Number(remainingBefore)
+  );
+  expect(screen.getByText("근태 현황을 가져왔습니다.")).toBeInTheDocument();
+});
+
+test("가져오기가 실패하면 기존 현황 값을 유지하고 오류를 표시한다", () => {
+  render(<Home />);
+  fillTopFields("120", "40", "15");
+
+  fireEvent.click(screen.getByRole("button", { name: "가져오기" }));
+  fireEvent(
+    window,
+    new CustomEvent("work-hour-calc:attendance-status-result", {
+      detail: { ok: false, error: "근태 달력을 찾지 못했습니다." },
+    })
+  );
+
+  expect(screen.getByLabelText("정상근무시간(시간)")).toHaveValue(120);
+  expect(screen.getByLabelText("누적근무시간 시간")).toHaveValue(40);
+  expect(screen.getByLabelText("누적근무시간 분")).toHaveValue(15);
+  expect(screen.getByText("근태 달력을 찾지 못했습니다.")).toBeInTheDocument();
+});
+
 test("계획 추가 버튼을 누르면 새 예상 근무 계획 항목이 나타난다", () => {
   render(<Home />);
 

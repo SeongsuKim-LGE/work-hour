@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "근무시간 배분 계산기 - 근태 가져오기",
+  "version": "0.1.0",
+  "description": "LG전자 근태 달력의 현황을 로컬 근무시간 배분 계산기로 가져옵니다.",
+  "permissions": ["tabs"],
+  "host_permissions": [
+    "https://attendance.lge.com/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://localhost/*", "http://127.0.0.1/*"],
+      "js": ["calculator-content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://attendance.lge.com/*"],
+      "js": ["extractor.js", "attendance-content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

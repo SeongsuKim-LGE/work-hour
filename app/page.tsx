@@ -41,6 +41,19 @@ type StatusFields = {
   accumulatedMinutesPart: string;
 };
 
+type ImportedAttendanceStatus = {
+  normalHours: number;
+  accumulatedHours: number;
+  accumulatedMinutes: number;
+};
+
+type AttendanceImportResult =
+  | { ok: true; status: ImportedAttendanceStatus }
+  | { ok: false; error: string };
+
+const ATTENDANCE_REQUEST_EVENT = "work-hour-calc:request-attendance-status";
+const ATTENDANCE_RESULT_EVENT = "work-hour-calc:attendance-status-result";
+
 function isEntryFieldsShape(
   value: unknown
 ): value is { hours: string; minutes: string; days: string } {
@@ -71,6 +84,21 @@ function isStatusFieldsShape(value: unknown): value is StatusFields {
     typeof record.accumulatedHoursPart === "string" &&
     typeof record.accumulatedMinutesPart === "string"
   );
+}
+
+function isAttendanceImportResult(value: unknown): value is AttendanceImportResult {
+  if (typeof value !== "object" || value === null || !("ok" in value)) return false;
+  const result = value as Record<string, unknown>;
+  if (result.ok === false) return typeof result.error === "string";
+  if (result.ok !== true || typeof result.status !== "object" || result.status === null) {
+    return false;
+  }
+  const status = result.status as Record<string, unknown>;
+  return [
+    status.normalHours,
+    status.accumulatedHours,
+    status.accumulatedMinutes,
+  ].every((item) => typeof item === "number" && Number.isFinite(item));
 }
 
 function isCustomHolidayShape(value: unknown): value is CustomHoliday {
@@ -261,7 +289,10 @@ export default function Home() {
   });
   const [hydrated, setHydrated] = useState(false);
   const [showResetPrompt, setShowResetPrompt] = useState(false);
+  const [isImportingAttendance, setIsImportingAttendance] = useState(false);
+  const [attendanceImportMessage, setAttendanceImportMessage] = useState<string | null>(null);
   const nextNewEntryId = useRef(0);
+  const attendanceImportTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function resetAll() {
     setNormalHours("");
@@ -348,6 +379,42 @@ export default function Home() {
       })
     );
   }, [normalHours, accumulatedHoursPart, accumulatedMinutesPart, hydrated]);
+
+  useEffect(() => {
+    function handleAttendanceResult(event: Event) {
+      const detail = (event as CustomEvent<unknown>).detail;
+      if (!isAttendanceImportResult(detail)) return;
+      if (attendanceImportTimeout.current) clearTimeout(attendanceImportTimeout.current);
+      attendanceImportTimeout.current = null;
+      setIsImportingAttendance(false);
+      if (!detail.ok) {
+        setAttendanceImportMessage(detail.error);
+        return;
+      }
+      setNormalHours(String(detail.status.normalHours));
+      setAccumulatedHoursPart(String(detail.status.accumulatedHours));
+      setAccumulatedMinutesPart(String(detail.status.accumulatedMinutes));
+      setAttendanceImportMessage("근태 현황을 가져왔습니다.");
+    }
+
+    window.addEventListener(ATTENDANCE_RESULT_EVENT, handleAttendanceResult);
+    return () => {
+      window.removeEventListener(ATTENDANCE_RESULT_EVENT, handleAttendanceResult);
+      if (attendanceImportTimeout.current) clearTimeout(attendanceImportTimeout.current);
+    };
+  }, []);
+
+  function importAttendanceStatus() {
+    setIsImportingAttendance(true);
+    setAttendanceImportMessage("근태 페이지에서 현황을 가져오는 중입니다.");
+    window.dispatchEvent(new CustomEvent(ATTENDANCE_REQUEST_EVENT));
+    attendanceImportTimeout.current = setTimeout(() => {
+      setIsImportingAttendance(false);
+      setAttendanceImportMessage(
+        "Chrome 확장 프로그램이 응답하지 않습니다. extension 폴더를 설치한 뒤 다시 시도해주세요."
+      );
+    }, 30000);
+  }
 
   function updateEntry(
     index: number,
@@ -461,7 +528,18 @@ export default function Home() {
         <SettlementPeriodBanner />
 
         <div className="flex flex-col gap-3">
-          <Label>현황</Label>
+          <div className="flex items-center justify-between">
+            <Label>현황</Label>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={importAttendanceStatus}
+              disabled={isImportingAttendance}
+            >
+              {isImportingAttendance ? "가져오는 중..." : "가져오기"}
+            </Button>
+          </div>
           <div className="grid grid-cols-[6.5rem_minmax(0,1fr)_minmax(0,1fr)_6.5rem] gap-x-3 gap-y-1.5 rounded-lg border border-border p-3">
             <Label
               htmlFor="normal-hours"
@@ -519,6 +597,11 @@ export default function Home() {
               onChange={(event) => setRemainingWorkDays(event.target.value)}
             />
           </div>
+          {attendanceImportMessage && (
+            <p className="text-xs text-muted-foreground" role="status">
+              {attendanceImportMessage}
+            </p>
+          )}
         </div>
 
         <div className="flex flex-col gap-3">
