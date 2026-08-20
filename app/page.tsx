@@ -91,6 +91,15 @@ function getDefaultRemainingWorkDays(): string {
   return String(getRemainingWorkDays(today, end));
 }
 
+function isSettlementPeriodFirstDay(today: Date): boolean {
+  const { start } = getSettlementPeriod(today);
+  return (
+    start.getFullYear() === today.getFullYear() &&
+    start.getMonth() === today.getMonth() &&
+    start.getDate() === today.getDate()
+  );
+}
+
 type ResultDisplay = {
   headline: string;
   role: "status" | "alert";
@@ -234,7 +243,19 @@ export default function Home() {
     quarter: "",
   });
   const [hydrated, setHydrated] = useState(false);
+  const [showResetPrompt, setShowResetPrompt] = useState(false);
   const nextNewEntryId = useRef(0);
+
+  function resetAll() {
+    setNormalHours("");
+    setAccumulatedHoursPart("");
+    setAccumulatedMinutesPart("");
+    setRemainingWorkDays(getDefaultRemainingWorkDays());
+    const id = `entry-new-${nextNewEntryId.current}`;
+    nextNewEntryId.current += 1;
+    setEntries([{ id, hours: "", minutes: "", days: "" }]);
+    setExclusionDays({ full: "", half: "", quarter: "" });
+  }
 
   useEffect(() => {
     const saved = window.localStorage.getItem(STORAGE_KEY);
@@ -263,6 +284,10 @@ export default function Home() {
       } catch {
         // 저장된 값이 손상된 경우 기본값을 유지한다.
       }
+    }
+
+    if (isSettlementPeriodFirstDay(new Date())) {
+      setShowResetPrompt(true);
     }
 
     setHydrated(true);
@@ -352,9 +377,43 @@ export default function Home() {
   return (
     <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
       <main className="flex flex-1 w-full max-w-md flex-col gap-6 py-16 px-6">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          근무시간 배분 계산기
-        </h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-semibold tracking-tight">
+            근무시간 배분 계산기
+          </h1>
+          <Button type="button" variant="outline" size="sm" onClick={resetAll}>
+            초기화
+          </Button>
+        </div>
+
+        <Dialog open={showResetPrompt} onOpenChange={setShowResetPrompt}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>새 근태일정 시작</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              오늘부터 새 근태일정이 시작됩니다. 입력값을 초기화할까요?
+            </p>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowResetPrompt(false)}
+              >
+                아니오
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  resetAll();
+                  setShowResetPrompt(false);
+                }}
+              >
+                예, 초기화
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <SettlementPeriodBanner />
 

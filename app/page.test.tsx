@@ -9,6 +9,10 @@ const CUSTOM_HOLIDAY_STORAGE_KEY = "work-hour-pace:custom-holidays";
 
 beforeEach(() => {
   localStorage.clear();
+  // 실제 현재 날짜가 근태일정 첫째날(20일)이면 초기화 확인 팝업이 떠서 무관한 테스트가 깨지므로,
+  // 첫째날이 아닌 고정된 날짜를 기본값으로 둔다. 첫째날 동작을 검증하는 테스트는 개별적으로 날짜를 다시 지정한다.
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date(2026, 7, 25)); // 2026-08-25, 정산기간 8/20~9/19
 });
 
 afterEach(() => {
@@ -406,7 +410,7 @@ test("휴일 추가 버튼을 누르면 팝업이 열린다", () => {
 
 test("반복 안함으로 휴일을 추가하면 근태일 기준 공휴일에 나타나고 저장된다", () => {
   vi.useFakeTimers();
-  vi.setSystemTime(new Date(2026, 7, 20)); // 정산기간 8/20~9/19
+  vi.setSystemTime(new Date(2026, 7, 22)); // 정산기간 8/20~9/19 (첫째날은 아님)
 
   render(<Home />);
 
@@ -428,7 +432,7 @@ test("반복 안함으로 휴일을 추가하면 근태일 기준 공휴일에 �
 
 test("매년 반복으로 휴일을 추가하면 월/일만으로 근태일 기준 공휴일에 나타난다", () => {
   vi.useFakeTimers();
-  vi.setSystemTime(new Date(2026, 7, 20)); // 정산기간 8/20~9/19
+  vi.setSystemTime(new Date(2026, 7, 22)); // 정산기간 8/20~9/19 (첫째날은 아님)
 
   render(<Home />);
 
@@ -462,7 +466,7 @@ test("이름을 입력하지 않으면 오류를 보여주고 추가하지 않�
 
 test("추가한 휴일은 삭제 버튼으로 지울 수 있고, 기본 공휴일에는 삭제 버튼이 없다", () => {
   vi.useFakeTimers();
-  vi.setSystemTime(new Date(2026, 7, 20)); // 정산기간 8/20~9/19
+  vi.setSystemTime(new Date(2026, 7, 22)); // 정산기간 8/20~9/19 (첫째날은 아님)
 
   render(<Home />);
 
@@ -488,7 +492,7 @@ test("추가한 휴일은 삭제 버튼으로 지울 수 있고, 기본 공휴�
 
 test("추가한 휴일은 저장되어 웹페이지를 다시 불러와도 유지된다", () => {
   vi.useFakeTimers();
-  vi.setSystemTime(new Date(2026, 7, 20)); // 정산기간 8/20~9/19
+  vi.setSystemTime(new Date(2026, 7, 22)); // 정산기간 8/20~9/19 (첫째날은 아님)
 
   const { unmount } = render(<Home />);
 
@@ -506,4 +510,100 @@ test("추가한 휴일은 저장되어 웹페이지를 다시 불러와도 유�
 
   const list = screen.getByRole("list", { name: "근태일 기준 공휴일" });
   expect(list).toHaveTextContent("8월 25일 회사 워크숍");
+});
+
+test("초기화 버튼을 누르면 정상근무시간·누적근무시간·예상 근무 계획·예상 근무 제외가 빈 값으로 초기화된다", () => {
+  render(<Home />);
+
+  fillTopFields("100", "50", "30");
+  fillEntry(0, "8", "0", "10");
+  fireEvent.click(screen.getByRole("button", { name: "계획 추가" }));
+  fillEntry(1, "4", "0", "2");
+  fireEvent.change(screen.getByLabelText("전일(8H)"), {
+    target: { value: "1" },
+  });
+  fireEvent.change(screen.getByLabelText("반일(4H)"), {
+    target: { value: "1" },
+  });
+  fireEvent.change(screen.getByLabelText("반반일(2H)"), {
+    target: { value: "1" },
+  });
+
+  fireEvent.click(screen.getByRole("button", { name: "초기화" }));
+
+  expect(screen.getByLabelText("정상근무시간(시간)")).toHaveValue(null);
+  expect(screen.getByLabelText("누적근무시간 시간")).toHaveValue(null);
+  expect(screen.getByLabelText("누적근무시간 분")).toHaveValue(null);
+
+  expect(screen.getByLabelText("1번째 계획 시간")).toHaveValue(null);
+  expect(screen.getByLabelText("1번째 계획 분")).toHaveValue(null);
+  expect(screen.getByLabelText("1번째 계획 일수")).toHaveValue(null);
+  expect(screen.queryByLabelText("2번째 계획 시간")).not.toBeInTheDocument();
+
+  expect(screen.getByLabelText("전일(8H)")).toHaveValue(null);
+  expect(screen.getByLabelText("반일(4H)")).toHaveValue(null);
+  expect(screen.getByLabelText("반반일(2H)")).toHaveValue(null);
+});
+
+test("초기화 버튼을 누르면 남은 근무 일수는 오늘 날짜 기준으로 다시 계산된다", () => {
+  render(<Home />);
+
+  const defaultValue = (
+    screen.getByLabelText("남은 근무 일수(일)") as HTMLInputElement
+  ).value;
+
+  fireEvent.change(screen.getByLabelText("남은 근무 일수(일)"), {
+    target: { value: "999" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "초기화" }));
+
+  expect(screen.getByLabelText("남은 근무 일수(일)")).toHaveValue(
+    Number(defaultValue)
+  );
+});
+
+test("근태일정 첫째날에 열면 초기화할지 묻는 팝업이 뜨고, 아니오를 누르면 값이 유지된다", () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date(2026, 7, 20)); // 2026-08-20, 근태일정 첫째날
+
+  render(<Home />);
+
+  expect(
+    screen.getByRole("heading", { name: "새 근태일정 시작" })
+  ).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "아니오" }));
+
+  expect(
+    screen.queryByRole("heading", { name: "새 근태일정 시작" })
+  ).not.toBeInTheDocument();
+  expect(screen.getByLabelText("1번째 계획 시간")).toBeInTheDocument();
+});
+
+test("근태일정 첫째날 팝업에서 예, 초기화를 누르면 예상 근무 계획이 초기화된다", () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date(2026, 7, 20)); // 2026-08-20, 근태일정 첫째날
+
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify([{ hours: "8", minutes: "0", days: "10" }])
+  );
+
+  render(<Home />);
+
+  fireEvent.click(screen.getByRole("button", { name: "예, 초기화" }));
+
+  expect(
+    screen.queryByRole("heading", { name: "새 근태일정 시작" })
+  ).not.toBeInTheDocument();
+  expect(screen.getByLabelText("1번째 계획 시간")).toHaveValue(null);
+  expect(screen.queryByLabelText("2번째 계획 시간")).not.toBeInTheDocument();
+});
+
+test("근태일정 첫째날이 아니면 초기화 팝업이 뜨지 않는다", () => {
+  render(<Home />);
+
+  expect(
+    screen.queryByRole("heading", { name: "새 근태일정 시작" })
+  ).not.toBeInTheDocument();
 });
