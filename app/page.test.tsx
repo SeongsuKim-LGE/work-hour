@@ -6,6 +6,7 @@ import Home from "@/app/page";
 const STORAGE_KEY = "work-hour-pace:planned-entries";
 const EXCLUSION_STORAGE_KEY = "work-hour-pace:exclusion-days";
 const CUSTOM_HOLIDAY_STORAGE_KEY = "work-hour-pace:custom-holidays";
+const STATUS_STORAGE_KEY = "work-hour-pace:status-fields";
 
 beforeEach(() => {
   localStorage.clear();
@@ -172,6 +173,39 @@ test("예상 근무 제외 값은 저장되어 웹페이지를 다시 불러와�
   render(<Home />);
 
   expect(screen.getByLabelText("반일(4H)")).toHaveValue(3);
+});
+
+test("정상근무시간·누적근무시간은 저장되어 웹페이지를 다시 불러와도 유지된다", () => {
+  const { unmount } = render(<Home />);
+
+  fillTopFields("100", "8", "30");
+  expect(localStorage.getItem(STATUS_STORAGE_KEY)).toContain("100");
+  unmount();
+
+  render(<Home />);
+
+  expect(screen.getByLabelText("정상근무시간(시간)")).toHaveValue(100);
+  expect(screen.getByLabelText("누적근무시간 시간")).toHaveValue(8);
+  expect(screen.getByLabelText("누적근무시간 분")).toHaveValue(30);
+});
+
+test("남은 근무 일수는 저장되지 않고, 다시 불러올 때마다 오늘 날짜 기준으로 다시 계산된다", () => {
+  const { unmount } = render(<Home />);
+
+  const defaultValue = (
+    screen.getByLabelText("남은 근무 일수(일)") as HTMLInputElement
+  ).value;
+
+  fireEvent.change(screen.getByLabelText("남은 근무 일수(일)"), {
+    target: { value: "999" },
+  });
+  unmount();
+
+  render(<Home />);
+
+  expect(screen.getByLabelText("남은 근무 일수(일)")).toHaveValue(
+    Number(defaultValue)
+  );
 });
 
 test("예상 근무 계획의 총 일수가 남은 근무 일수보다 많으면 경고를 함께 보여준다", () => {

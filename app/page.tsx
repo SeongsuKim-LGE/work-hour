@@ -29,10 +29,17 @@ import {
 const STORAGE_KEY = "work-hour-pace:planned-entries";
 const EXCLUSION_STORAGE_KEY = "work-hour-pace:exclusion-days";
 const CUSTOM_HOLIDAY_STORAGE_KEY = "work-hour-pace:custom-holidays";
+const STATUS_STORAGE_KEY = "work-hour-pace:status-fields";
 
 type EntryFields = { id: string; hours: string; minutes: string; days: string };
 
 type ExclusionDaysFields = { full: string; half: string; quarter: string };
+
+type StatusFields = {
+  normalHours: string;
+  accumulatedHoursPart: string;
+  accumulatedMinutesPart: string;
+};
 
 function isEntryFieldsShape(
   value: unknown
@@ -53,6 +60,16 @@ function isExclusionDaysShape(value: unknown): value is ExclusionDaysFields {
     typeof record.full === "string" &&
     typeof record.half === "string" &&
     typeof record.quarter === "string"
+  );
+}
+
+function isStatusFieldsShape(value: unknown): value is StatusFields {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record.normalHours === "string" &&
+    typeof record.accumulatedHoursPart === "string" &&
+    typeof record.accumulatedMinutesPart === "string"
   );
 }
 
@@ -286,6 +303,20 @@ export default function Home() {
       }
     }
 
+    const savedStatus = window.localStorage.getItem(STATUS_STORAGE_KEY);
+    if (savedStatus) {
+      try {
+        const parsed: unknown = JSON.parse(savedStatus);
+        if (isStatusFieldsShape(parsed)) {
+          setNormalHours(parsed.normalHours);
+          setAccumulatedHoursPart(parsed.accumulatedHoursPart);
+          setAccumulatedMinutesPart(parsed.accumulatedMinutesPart);
+        }
+      } catch {
+        // 저장된 값이 손상된 경우 기본값을 유지한다.
+      }
+    }
+
     if (isSettlementPeriodFirstDay(new Date())) {
       setShowResetPrompt(true);
     }
@@ -305,6 +336,18 @@ export default function Home() {
       JSON.stringify(exclusionDays)
     );
   }, [exclusionDays, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    window.localStorage.setItem(
+      STATUS_STORAGE_KEY,
+      JSON.stringify({
+        normalHours,
+        accumulatedHoursPart,
+        accumulatedMinutesPart,
+      })
+    );
+  }, [normalHours, accumulatedHoursPart, accumulatedMinutesPart, hydrated]);
 
   function updateEntry(
     index: number,
